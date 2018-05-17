@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html>
+    <head>
+    <title>Toy Popularity</title>
+<style>
+      @import url(styles.css);
+        .dropdown {
+    position: relative;
+    display: inline-block;
+}  
+   .dropdown-content {
+    display: none;
+    position: absolute;
+    background-color: #f9f9f9;
+    min-width: 160px;
+    box-shadow: 0px 8px 8px 0px rgba(0,0,0,0.2);
+    padding: 6px 6px;
+    z-index: 1;
+}          
+    .dropdown-content a {
+    color: black;
+    padding: 12px 16px;
+    text-decoration: none;
+    display: block;
+}
+.dropdown:hover .dropdown-content {
+    display: block;
+}
+.dropdown-content a:hover {background-color: #f1f1f1}   
+span {color:cadetblue;
+        margin-left:20px;}
+    
+        circle{
+        stroke:#b7a1a1;
+    }
+    text {font-family: sans-serif ;}
+    
+    div.tooltip {	
+    position: absolute;			
+    text-align: center;			
+    width: automatic;					
+    height: automatic;					
+    padding: 20px;				
+    font: 12px sans-serif;		
+    background: lightsteelblue;	
+    border: 0px;		
+    border-radius: 8px;			
+    pointer-events: none;			
+}
+
+      </style>
+        <script src="d3.v3.min.js"></script>
+    </head>
+    
+<div id="body">
+<header>
+  <b><a href="./">Home</a></b><br>
+    Projects:
+     <a href="synchrotron-map.html">Synchroton Map | </a>
+    <a href="clustered_force_graph.html"><b>Toy Popularity</b> | </a>   
+    <a href="atoms.html">A protein molecule | </a> 
+       <a href="weather_pull.html">Melbourne Weather | </a>
+         <a href="stacked_bar.html">Stacked bar chart | </a>
+         <a href="responsive_bar_chart.html">Responsive activity bar chart </a><br>
+  <a href="resources.html">Data Viz Resources</a>
+
+
+
+</header>
+</header>
+
+  <body>
+      <h1>Toy popularity</h1>
+    <script src="toy_popularity_data.json"></script>
+      <div>
+          <p> This clustered force graph (somewhat inspired by <a href="https://bl.ocks.org/mbostock/7881887">this</a>) shows relative popularity of toys from toys data obtained at one toy library using 
+              <a href="http://setls.com.au">SETLS</a>.  The 'popularity' is based on the number of times the toy has been loaned, though this may not be a true reflection of its actual popularity. Other data to measure popularity we are capable of obtaining is by percent of time out (versus time toy has been owened by the library) which is a far more robust measure.  However, the need to prototype this graph, we are only basing this on the number of total loans each toy has had. 
+          </p>
+
+      </div>
+<div>
+    <button class="button1" id="Default">Category</button>
+    <button class="button2" id="Age-range">Age Range</button>
+    <button class="button3" id="Manufacturer">Manufacturer</button>
+ </div>
+    <svg id="svg" width=1100 height=500 ></svg>
+                <p>The actual data file contains toy popularity information for over 3000 toys, but a good bubble chart this does not make! The size
+              of the circles must be relative to each other, so once you start trying to determine the size of a circle representing over 2000 loans versus something that has been loaned once, means that we can't really use any visual way to show some of the data.</p>
+          <p>Based on experience exploring the data, about 130 circles plots well. The data is then binned into histograms using D3's own d3.bin.histogram function where we decide on a maximum number of bins. I've let this be 20 bins - then count backwards from the highest binned number till 130 datapoints is reached - the relevant toys are selected and plotted.</p>
+          <p>
+          Each toy has three possible descriptors (manufacturer, age range, and toy category --defined by the library). Each toy library has vastly different categories, manufacturers, age-ranges, gaps in their data as well as size of their data - this seems to be a fairly robust solution across 53 toy libraries for now!</p>
+  </body>
+
+
+<script>
+var width = 900,
+	height = 500,
+	padding = 1.5, // separation between same-color nodes
+	clusterPadding = 3, // separation between different-color nodes
+	maxRadius = 20;
+    minRadius = 1;
+var clusters=[];
+var dataset=selectData(d1,2,6);
+
+
+  //  .domain(d3.range(m));
+
+  
+
+  
+makeGraph(dataset);
+
+         var tooltip = d3.select("body").append("div")
+        .attr("class", "tooltip")
+        .style("opacity", 0); 
+    
+function makeGraph(nodes) {
+    var color = d3.scale.category20b();
+
+	var force = d3.layout.force()
+        .nodes(nodes)
+        .size([width, height])
+        .gravity(.02)
+        .charge(0)
+        .on("tick", tick).start();
+    
+    	var svg = d3.select("svg")
+        .append("svg")
+        .attr("width", width)
+        .attr("height", height);
+
+    
+	node = svg.selectAll("circle")
+        .data(nodes)
+        .enter()
+        .append("g")
+        .call(force.drag);
+    
+        node.transition()
+        .duration(750)
+    .delay(function(d, i) { return i * 5; })
+    .attrTween("r", function(d) {
+      var i = d3.interpolate(0, d.radius);
+      return function(t) { return d.radius = i(t); };
+    });
+	//addcircle to the group
+	node.append("circle")
+        .style("fill", function(d) {
+		  return color(d.cluster);
+	       }).attr("r", function(d) {
+		  return Math.round(d.radius)
+	       })
+            .on("mouseover", function(d) {
+                 tooltip.transition()
+                    .duration(200)
+                    .style("opacity", .9);
+                     tooltip.html("Toy name: "+ d.name+"<br/>Relative popularity: "+Math.round(d.radius)+"<br/>Group: "+d.cluster )
+                    .style("left", (d3.event.pageX + 5) + "px")
+                     .style("top", (d3.event.pageY - 28) + "px");})
+            .on("mouseout", function(d) {		
+                tooltip.transition()		
+                    .duration(200)		
+                    .style("opacity", 0);	
+                    });
+	//add text to the group    
+    node.append("text").text(function(d) {if(d.radius>16){
+        return d.name;} else {return "";}
+	}).attr("dx", -20).attr("dy", ".35em").style("stroke", "none").style("font-size", "8pt")
+
+var legend = svg.selectAll("legend")
+    .data(color.domain())
+//.data(nodes,function(d){return d.cluster;})
+    .enter().append("g")
+    .attr("class", "legend")
+    .attr("transform", function(d, i) { return "translate(0," + i * 20 + ")"; });
+    //.attr("transform","translate(0,20)");
+
+legend.append("rect")
+    .attr("x", width - 18)
+    .attr("width", 18)
+    .attr("height", 18)
+.style("fill", color);
+
+legend.append("text")
+    .attr("x", width - 24)
+    .attr("y", 9)
+    .attr("dy", ".35em")
+    .style("text-anchor", "end")
+    .text(function(d) { return d; });
+    
+
+
+
+
+	function tick(e) {
+		node.each(cluster(10 * e.alpha * e.alpha)).each(collide(.3))
+			.attr("transform", function(d) {
+				var k = "translate(" + d.x + "," + d.y + ")";
+				return k;
+			})
+	}
+	// Move d to be adjacent to the cluster node.
+	function cluster(alpha) {
+		return function(d) {
+			var cluster = clusters[d.cluster];
+			if (cluster === d) return;
+			var x = d.x - cluster.x,
+				y = d.y - cluster.y,
+				l = Math.sqrt(x * x + y * y),
+				r = d.radius + cluster.radius;
+			if (l != r) {
+				l = (l - r) / l * alpha;
+				d.x -= x *= l;
+				d.y -= y *= l;
+				cluster.x += x;
+				cluster.y += y;
+			}
+		};
+	}
+	// Resolves collisions between d and all other circles.
+	function collide(alpha) {
+		var quadtree = d3.geom.quadtree(nodes);
+		return function(d) {
+			var r = d.radius + maxRadius + Math.max(padding, clusterPadding),
+				nx1 = d.x - r,
+				nx2 = d.x + r,
+				ny1 = d.y - r,
+				ny2 = d.y + r;
+			quadtree.visit(function(quad, x1, y1, x2, y2) {
+				if (quad.point && (quad.point !== d)) {
+					var x = d.x - quad.point.x,
+						y = d.y - quad.point.y,
+						l = Math.sqrt(x * x + y * y),
+						r = d.radius + quad.point.radius + (d.cluster === quad.point.cluster ? padding : clusterPadding);
+					if (l < r) {
+						l = (l - r) / l * alpha;
+						d.x -= x *= l;
+						d.y -= y *= l;
+						quad.point.x += x;
+						quad.point.y += y;
+					}
+				}
+				return x1 > nx2 || x2 < nx1 || y1 > ny2 || y2 < ny1;
+			});
+		};
+	}
+}
+
+        
+    
+d3.select("#Default").on("click", function() {
+      d3.selectAll("g.legend").remove();
+    d3.selectAll("rect").remove();
+	d3.selectAll("circle").remove();
+    d3.selectAll("text").remove();
+
+    //default is category and num times loaned
+var dataset=selectData(d1,1,6);
+	makeGraph(dataset);
+});
+d3.select("#Age-range").on("click", function() {
+    d3.selectAll("g.legend").remove();
+    d3.selectAll("rect").remove();
+	d3.selectAll("circle").remove();
+    d3.selectAll("text").remove();
+    var color = d3.scale.category20c();
+    //dataset manufacturer -- group=6
+    var dataset=selectData(d1,1,4);
+    makeGraph(dataset);
+
+});
+d3.select("#Manufacturer").on("click", function() {
+    d3.selectAll("g.legend").remove();
+    d3.selectAll("rect").remove();
+	d3.selectAll("circle").remove();
+    d3.selectAll("text").remove();
+            
+    //dataset manufacturer -- group=6
+      var color = d3.scale.category20b();
+    var dataset=selectData(d1,1,5);
+    makeGraph(dataset);
+});
+    d3.select("#othervalue").on("click", function() {
+       d3.selectAll(".legend").remove();
+	d3.selectAll("circle").remove();
+    d3.selectAll("text").remove();
+        //dataset = and num times loaned
+var dataset=selectData(d1,2,6);
+	makeGraph(dataset);
+});
+
+	
+    function selectData(d1,num,clust){
+       
+        if (num==1){var choice=1;}
+        else if (num==2){var choice=2;}
+        var group=0;
+        if (clust==4){var group=4;}
+        else if (clust==5){var group=5;}
+        else if (clust==6){var group=6;}
+        
+          //loans array
+            var loans=new Array();
+                for (i = 0; i < d1.length; i++) 
+                {loans.push(d1[i][choice])
+                    ;}
+                    
+         // calculate 20 bins /historgram in case large dataset
+        var bins=d3.layout.histogram()
+            .bins(20)
+            .range([0,d3.max(loans)])
+            (loans)
+        
+    // find where the sum of individual bin lengths (top to bottom) is >130
+    //130 being max number of circles plotted
+            var bins_length=0;
+                for (i=19;i>=0;i--)
+                {bins_length=bins[i].length+bins_length;
+                    if (bins_length>120){break;}
+                 }
+            var bins_stop=i;
+        
+     
+        //min_bin is our threshold value for plotting the circles. ensures
+        // no more than 130 will get plotted.
+            var min_bin=d3.min(bins[bins_stop]);
+
+        //create nodes from d1 array
+            var root = {};var numNodes=0;
+                root.name = "popularity";
+                root.children = new Array();
+            for (i = 0; i < d1.length; i++) {
+	           var item = {};
+	           if (d1[i][choice] > min_bin) {
+		          item.name = d1[i][0];
+		          item.value = d1[i][choice];
+		          item.group = d1[i][group];
+		          root.children.push(item);
+                    numNodes++;
+	               }
+                    }
+        var m = d3.max(root.children, function(d) {
+	return d.value});
+
+    var dataset = root.children.map(function(d) {  
+	var rscale = d3.scale.linear().domain([0, d3.max(d.value)]).range([minRadius, maxRadius]);
+	var rv = d.value ;
+    var r= Math.sqrt((rv + 1) / m * -Math.log(Math.random())) * maxRadius
+	var dta = {
+		cluster: d.group, 
+		name: d.name, 
+		radius: r,
+		x: Math.cos(d.group / m * 2 * Math.PI) * 50 + width / 2 + Math.random(),
+		y: Math.sin(d.group / m * 2 * Math.PI) * 50 + height / 2 + Math.random()
+	};
+	if (!clusters[d.group] || (d.radius > clusters[d.group].radius)) clusters[d.group] = dta;
+	return dta;
+});
+    
+    return dataset
+    ;}
+        
+        
+function legend_update(){
+	
+		legend.remove();
+		
+var legend = svg.selectAll(".legend")
+    .data(color.domain())
+//.data(nodes,function(d){return d.cluster;})
+    .enter().append("g")
+    .attr("class", "legend")
+    .attr("transform", function(d, i) { return "translate(0," + i * 20 + ")"; });
+
+			
+};
+
+    
+    
+    
+    </script>
+</html>
